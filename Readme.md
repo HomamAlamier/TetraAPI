@@ -9,6 +9,6 @@ This project for university graduation.
 	1.SignUp/Login
 	2.Groups
 	3.UserSearch(needs better search algorithm)
-## Not Workiing :
+## Not Working :
 	1.FileTransfer
 	2.There Is Some Connection Lost (IDK why for now :P)
