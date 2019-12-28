@@ -62,6 +62,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EventHandlers.cs" />
+    <Compile Include="Managers\FileManager.cs" />
+    <Compile Include="Managers\Server_Multi_Connection_Manager.cs" />
+    <Compile Include="Managers\UsersManager.cs" />
     <Compile Include="Server.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -71,5 +75,6 @@
       <Name>TetraAPI.Handlers</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

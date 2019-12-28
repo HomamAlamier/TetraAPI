@@ -129,15 +129,12 @@ namespace TetraAPI.Client
     {
 
         #region Vars
-        const string ipAll = "40.121.93.124";
+        const string ipAll = "127.0.0.1";//= "40.121.93.124";
         private Socket socket;
         private SslStream socketStream;
         private int conTrys = 3;
         private int conCurTry = 0;
         private int timeBetweenTrys = 5000;
-#pragma warning disable CS0414 // The field 'Client.timeBetweenTrysM' is assigned but its value is never used
-        private int timeBetweenTrysM = 1;
-#pragma warning restore CS0414 // The field 'Client.timeBetweenTrysM' is assigned but its value is never used
         private IPEndPoint connectIP = new IPEndPoint(IPAddress.Parse(ipAll), 42534);
         private IPEndPoint connectIP_file = new IPEndPoint(IPAddress.Parse(ipAll), 42535);
         private string ClientAuthName = "";
@@ -148,9 +145,6 @@ namespace TetraAPI.Client
         private User curUser;
         private bool Disposed;
         private Log logg;
-#pragma warning disable CS0169 // The field 'Client.filename' is never used
-        private string filename;
-#pragma warning restore CS0169 // The field 'Client.filename' is never used
         private string sLoc = "";
         #endregion
         #region Threading
@@ -159,12 +153,30 @@ namespace TetraAPI.Client
         #endregion
         #region Properties
         public bool IsConnected { get => IsConnected; }
+        /// <summary>
+        /// Count of connect try's
+        /// </summary>
         public int ConnectTrys { get => conTrys; set => conTrys = value; }
+        /// <summary>
+        /// The time between each connect try
+        /// </summary>
         public int TimeBetweenTrys { get => timeBetweenTrys; set => timeBetweenTrys = value; }
-        public long Latency { get => latency; }
-        public User CurrentUser { get => curUser; }
-        public ConnectionState ConnectionStates { get; set; }
 
+        /// <summary>
+        /// Get\s the latency between the server and the client
+        /// </summary>
+        public long Latency { get => latency; }
+        /// <summary>
+        /// Get\s current (logined / created) user info
+        /// </summary>
+        public User CurrentUser { get => curUser; }
+        /// <summary>
+        /// Get\s client connection status
+        /// </summary>
+        public ConnectionState ConnectionStates { get; set; }
+        /// <summary>
+        /// Get's Or Set's StorageLocation for the client data like logs and database's and media files
+        /// </summary>
         public string StorageLocation
         {
             get => sLoc; set
@@ -269,6 +281,9 @@ namespace TetraAPI.Client
             };
         }
         #endregion
+        /// <summary>
+        /// Initialize The Client
+        /// </summary>
         public Client()
         {
             Disposed = false;
@@ -277,6 +292,11 @@ namespace TetraAPI.Client
             SocketPermission permission = new SocketPermission(NetworkAccess.Accept, TransportType.Tcp, "", 47596);
             permission.Demand();
         }
+        /// <summary>
+        /// Initialize The Client
+        /// </summary>
+        /// <param name="Console">True if you want to log into the console</param>
+        /// <param name="StorageLocation">Client files StorageLocation</param>
         public Client(bool Console = true, string StorageLocation = "")
         {
             Disposed = false;
@@ -287,25 +307,36 @@ namespace TetraAPI.Client
             SocketPermission permission = new SocketPermission(NetworkAccess.Accept, TransportType.Tcp, "", 47596);
             permission.Demand();
         }
+        /// <summary>
+        /// Start The Client
+        /// </summary>
         public void Start() { connectHandler = new Thread(new ThreadStart(HANDLER_CONNECT)); connectHandler.Start(); }
+
+        //This thread handle's the connection try's and fails
         private void HANDLER_CONNECT()
         {
             try
             {
+                //check if current try's count = total try's count
                 if (conCurTry == conTrys)
                 {
                     logg.WriteError("Connection Failed After " + conTrys + " time's! Waiting " + (timeBetweenTrys / 1000) + " seconds before retry.");
                     conCurTry = 0;
                     ConnectionStates = ConnectionState.Disconnected;
+                    //first time sleep for the time we specified
+                    //other time's sleep for 60 second's
                     Thread.Sleep(timeBetweenTrys);
                     timeBetweenTrys = 60000;
                 }
                 logg.WriteInfo("Trying to connect (Try " + (conCurTry + 1) + ")");
+                //Set Connection Status to connecting
                 ConnectionStates = ConnectionState.Connecting;
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 IAsyncResult result = socket.BeginConnect(connectIP, null, null);
                 bool success = result.AsyncWaitHandle.WaitOne(2000, true);
                 if (!success) throw new Exception("Connection Timed Out !");
+                //Check if async ressult was successfull or not
+                //If it is successfull begin autenticate with the server
                 if (socket != null && socket.Connected)
                 {
                     logg.WriteInfo("Client Connected Successfully!");
@@ -322,8 +353,10 @@ namespace TetraAPI.Client
                         );
                     ConnectionStates = ConnectionState.Connected;
                     socketStream = stream;
+                    //If the authenticate successfully completed invoke OnConnectSuccessfully
                     OnConnectSuccessfully?.Invoke(this, null);
                     conCurTry = 0;
+                    //Start Ping Thread
                     pingHandler = new Thread(new ThreadStart(Handle_Ping));
                     pingHandler.Start();
                     timeBetweenTrys = 5000;
@@ -338,7 +371,7 @@ namespace TetraAPI.Client
                 HANDLER_CONNECT();
             }
         }
-
+        //Thread that handle's the ping operation
         private void Handle_Ping()
         {
             while (socket != null && socket.Connected)
@@ -358,6 +391,7 @@ namespace TetraAPI.Client
             pingHandler.Abort();
         }
 
+        //Handle's Incoming Data
         private void StreamReadHandler(IAsyncResult ar)
         {
             var stream = (SslStream)ar.AsyncState;
@@ -376,6 +410,7 @@ namespace TetraAPI.Client
                         else logg.WriteInfo("Ping Status = " + pingWatch.ElapsedMilliseconds + "ms", ConsoleColor.Red);
                         latency = pingWatch.ElapsedMilliseconds;
                     }
+                    //this switch handle's result's and error's from sent command
                     switch (cmd.CommandName)
                     {
                         case "CUSR":
@@ -539,6 +574,11 @@ namespace TetraAPI.Client
                 logg.WriteError(e);
             }
         }
+        /// <summary>
+        /// Send a create user request to server
+        /// when the result come back it will invoke OnCreateUser
+        /// </summary>
+        /// <param name="user">User info to be sent</param>
         public void CreateUserAsync(User user)
         {
             if (curUser == null && !socket.Connected) return;
@@ -549,6 +589,11 @@ namespace TetraAPI.Client
             WriteToStream(socketStream, cmd);
             curUser = user;
         }
+        /// <summary>
+        /// Send a login user request to server
+        /// when the result come back it will invoke OnLogin
+        /// </summary>
+        /// <param name="user">User info to be sent(email and password needed only)</param>
         public void LoginUserAsync(User user)
         {
             if (!socket.Connected) return;
@@ -557,7 +602,13 @@ namespace TetraAPI.Client
             cmd.CommandArgs = user.GetData();
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a message to a user
+        /// when the result come back it will invoke OnMessageReceive
+        /// if the result was an error it will invoke OnMessageError
+        /// if the result was to change message state it will invoke OnMessageStateChange
+        /// </summary>
+        /// <param name="msg">Message info to be sent</param>
         public void SendMessageAsync(Message msg)
         {
             if (curUser == null || !socket.Connected) return;
@@ -566,6 +617,11 @@ namespace TetraAPI.Client
             cmd.CommandArgs = msg.GetData();
             WriteToStream(socketStream, cmd);
         }
+        /// <summary>
+        /// Send a block user request to server
+        /// </summary>
+        /// <param name="Block">True to block or false to unblock</param>
+        /// <param name="PID">User Personal ID to be blocked or unblocked</param>
         public void SetUserBlockAsync(bool Block, string PID)
         {
             if (curUser == null || !socket.Connected) return;
@@ -575,7 +631,11 @@ namespace TetraAPI.Client
             cmd.CommandArgs = PID;
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a search for user request to server
+        /// when the result come back it will invoke OnSearchResult
+        /// </summary>
+        /// <param name="keyWord">KeyWord value to be used in the search proccess</param>
         public void SearchForUserAsync(string keyWord)
         {
             if (curUser == null || !socket.Connected || keyWord == null || keyWord == "") return;
@@ -585,7 +645,10 @@ namespace TetraAPI.Client
             cmd.CommandArgs = keyWord;
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a create group request to server
+        /// </summary>
+        /// <param name="group">Group info to be sent</param>
         public void CreateGroupAsync(Group group)
         {
             Command cmd = new Command();
@@ -593,7 +656,11 @@ namespace TetraAPI.Client
             cmd.CommandArgs = group.GetData();
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a add member to group request to server
+        /// </summary>
+        /// <param name="pid">User Personal ID to be added</param>
+        /// <param name="grID">Group ID to be added into</param>
         public void AddMemberToGroupAsync(string pid, int grID)
         {
             Command cmd = new Command();
@@ -601,7 +668,11 @@ namespace TetraAPI.Client
             cmd.CommandArgs = pid + "\0" + grID + "\0";
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a group info request to server
+        /// when the result come back it will invoke OnGroupInfoReceived
+        /// </summary>
+        /// <param name="GRID">Group ID</param>
         public void GetGroupInfoAsync(int GRID)
         {
             Command cmd = new Command()
@@ -611,7 +682,11 @@ namespace TetraAPI.Client
             };
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a remove member to group request to server
+        /// </summary>
+        /// <param name="pid">User Personal ID to be removed</param>
+        /// <param name="grID">Group ID to be removed from</param>
         public void RemoveMemberFromGroupAsync(string pid, int grID)
         {
             Command cmd = new Command();
@@ -619,14 +694,24 @@ namespace TetraAPI.Client
             cmd.CommandArgs = pid + "\0" + grID + "\0";
             WriteToStream(socketStream, cmd);
         }
-
+        /// <summary>
+        /// Send a user info request to server
+        /// when the result come back it will invoke OnUserInfoReceived
+        /// </summary>
+        /// <param name="pid">User Personal ID</param>
         public void GetUserInfoAsync(string pid)
         {
             Command gusr = new Command() { CommandName = "GUSR", CommandArgs = pid };
             WriteToStream(socketStream, gusr);
         }
+        //The following method is in development
+        /// <summary>
+        /// To Be Added
+        /// </summary>
+        /// <param name="filename"></param>
         public void SendFile(string filename)
         {
+            System.IO.FileStream stream1 = null;
             try
             {
                 Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -647,7 +732,7 @@ namespace TetraAPI.Client
                     var b = UTF8Encoding.UTF8.GetBytes(xS);
                     stream.Write(b, 0, b.Length);
                     stream.Flush();
-                    System.IO.FileStream stream1 = new System.IO.FileStream(filename, System.IO.FileMode.Open);
+                    stream1 = new System.IO.FileStream(filename, System.IO.FileMode.Open);
                     while (true)
                     {
                         buffer = new byte[bufSize];
@@ -656,6 +741,7 @@ namespace TetraAPI.Client
                             int size = stream1.Read(buffer, 0, (int)(len - cur));
                             stream.Write(buffer, 0, size);
                             stream.Flush();
+                            logg.WriteInfo("Transfering " + (cur + size) + "/" + len);
                             break;
                         }
                         else
@@ -668,11 +754,18 @@ namespace TetraAPI.Client
                         logg.WriteInfo("Transfering " + cur + "/" + len);
                     }
                     stream1.Close();
-
+                    stream1.Dispose();
+                    sock.Close();
+                    sock.Dispose();
                 }
             }
             catch (Exception ex)
             {
+                if (stream1 != null)
+                {
+                    stream1.Close();
+                    stream1.Dispose();
+                }
                 logg.WriteError(ex);
                 if (ex.InnerException != null) logg.WriteError(ex.InnerException);
             }

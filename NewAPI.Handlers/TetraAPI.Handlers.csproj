@@ -64,7 +64,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DataTypes\Command.cs" />
+    <Compile Include="DataTypes\FileInf.cs" />
+    <Compile Include="DataTypes\Group.cs" />
+    <Compile Include="DataTypes\Message.cs" />
+    <Compile Include="DataTypes\User.cs" />
     <Compile Include="Handlers.cs" />
+    <Compile Include="Log.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

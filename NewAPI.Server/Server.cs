@@ -7,178 +7,12 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using System.IO;
+
 namespace TetraAPI.Server
 {
-    public class UserManager : IDisposable
-    {
-        List<User> users;
-        List<List<Message>> usersMessages;
-        List<long> usersMessagesIDs;
-        List<bool> IsConnectedUser;
-        List<Group> groups;
 
-        public UserManager()
-        {
-            users = new List<User>();
-            usersMessages = new List<List<Message>>();
-            usersMessagesIDs = new List<long>();
-            IsConnectedUser = new List<bool>();
-            groups = new List<Group>();
-        }
-        public int AddUser(User user)
-        {
-            foreach (var item in users)
-            {
-                if (item.PID == user.PID) return -1;
-                if (item.Email == user.Email) return -2;
-            }
-            user.ServerID = users.Count;
-            users.Add(user);
-            usersMessages.Add(new List<Message>());
-            usersMessagesIDs.Add(0);
-            return 0;
-        }
-        public void AddGroup(Group group)
-        {
-            if (group == null) return;
-            group.ID = groups.Count;
-            groups.Add(group);
-        }
-        public int AddUserToGroup(string userPID, int groupID)
-        {
-            if (groupID > -1 && userPID != null)
-            {
-                return groups[groupID].AddMember(userPID);
-            }
-            return -1;
-        }
-        public List<Message> GetUserMessages(string userPID)
-        {
-            for (int i = 0; i < users.Count; i++)
-            {
-                if (users[i].PID == userPID) return usersMessages[i];
-            }
-            return null;
-        }
-        public void DeleteMessage(int userIndex, int MessageIndex, bool SendReceived = false, bool ForceRemove = false)
-        {
-            if (userIndex < users.Count)
-            {
-                if (ForceRemove && !SendReceived)
-                {
-                    usersMessages[userIndex].RemoveAt(MessageIndex);
-                    return;
-                }
-                else if (ForceRemove && SendReceived)
-                {
-                    var item = usersMessages[userIndex][MessageIndex];
-                    if (SendReceived && item.MessageFrom != null)
-                    {
-                        int ind = GetUserIndex(item.MessageFrom);
-                        AddMessage(ind, new Message() { MessageDate = DateTime.Now, MessageContent = "SETRECECIVED:" + item.MessageID, MessageTo = item.MessageFrom, MessageID = item.MessageID, MessageFrom = "server" });
-                    }
-                    usersMessages[userIndex].RemoveAt(MessageIndex);
-                    return;
-                }
-                foreach (var item in usersMessages[userIndex])
-                {
-                    if (SendReceived && item.MessageFrom != null)
-                    {
-                        int ind = GetUserIndex(item.MessageFrom);
-                        AddMessage(ind, new Message() { MessageDate = DateTime.Now, MessageContent = "SETRECECIVED:" + item.MessageID, MessageTo = item.MessageFrom, MessageID = item.MessageID, MessageFrom = "server" });
-                    }
-                    if (ForceRemove) usersMessages[userIndex].RemoveAt(MessageIndex);
-                    else usersMessages[userIndex].Remove(item);
-                    break;
-                }
-            }
-        }
-        public List<Message> GetUserMessages(int userIndex)
-        {
-            if (userIndex > users.Count || userIndex < 0) return null;
-            return usersMessages[userIndex];
-        }
-        public int GetUserIndex(string userPID)
-        {
-            if (userPID == null) return -1;
-            for (int i = 0; i < users.Count; i++)
-            {
-                if (users[i].PID == userPID) return i;
-            }
-            return -1;
-        }
-        public Group GetGroup(int GID) { if (GID < groups.Count) return groups[GID]; else return null; }
-        public int AddMessage(int Index, Message message)
-        {
-            if (Index > usersMessages.Count || Index < 0) return -1;
-            if (users[Index].BlockedUsers.Contains(message.MessageFrom)) return -2;
-            if (message.MessageID < 0) { message.MessageID = usersMessagesIDs[Index]; usersMessagesIDs[Index]++; }
-            usersMessages[Index].Add(message);
-            return 0;
-        }
-        public void RemoveUser(User user) { if (user != null) users.Remove(user); }
-        public void RemoveGroup(Group group) { if (groups.Contains(group)) groups.Remove(group); }
-        public int RemoveUserFromGroup(string userPID, int groupID)
-        {
-            if (groupID > -1 && userPID != null)
-            {
-                return groups[groupID].RemoveMember(userPID);
-            }
-            return -1;
-        }
-        public int LoginUser(User info, out User user)
-        {
-            user = null;
-            if (info.Email == null || info.Email == "") return -2;
-            if (info.Password == null || info.Password == "") return -1;
-            foreach (var item in users)
-            {
-                if (item.Email == info.Email && item.Password == info.Password)
-                {
-                    User outUser = item;
-                    user = outUser;
-                    return 0;
-                }
-                else if (item.Email == info.Email && item.Password != info.Password)
-                {
-                    user = null;
-                    return -1;
-                }
-            }
-            return -2;
-        }
-        public void SetUserConnected(int userIndex, bool isConnected)
-        {
-            if (IsConnectedUser.Count <= userIndex) return;
-            IsConnectedUser[userIndex] = isConnected;
-        }
-        public void BlockUser(int userIndex, string blockuserPID)
-        {
-            if (userIndex >= users.Count || userIndex < 0 || blockuserPID == "" || blockuserPID == null) return;
-            if (!users[userIndex].BlockedUsers.Contains(blockuserPID)) users[userIndex].BlockedUsers.Add(blockuserPID);
-        }
-        public void UnblockUser(int userIndex, string blockuserPID)
-        {
-            if (userIndex >= users.Count || userIndex < 0 || blockuserPID == "" || blockuserPID == null) return;
-            if (users[userIndex].BlockedUsers.Contains(blockuserPID)) users[userIndex].BlockedUsers.Remove(blockuserPID);
-        }
-        public string[] Search(string keyWord, int userIndex)
-        {
-            if (keyWord[0] != '@' || userIndex < 0 || userIndex >= users.Count) return null;
-            List<string> tmp = new List<string>();
-            foreach (var item in users)
-            {
-                if (item.PID.IndexOf(keyWord) == 0 && item.PID != users[userIndex].PID) tmp.Add(item.PID);
-            }
-            return tmp.ToArray();
-        }
-        public void Dispose()
-        {
-            users = null;
-        }
-
-        public User this[int index] { get { if (index < users.Count && index > -1) return users[index]; else return null; } }
-    }
+    //Sturct for session's info's
     internal class Session
     {
         public Socket Socket { set; get; }
@@ -188,395 +22,6 @@ namespace TetraAPI.Server
         public string DataStrorage { get; set; }
         public int UserIndex { get; set; }
         public int TimeOut { get; set; }
-    }
-    public class DataReceiveEventArgs : EventArgs
-    {
-        public byte[] Data;
-        internal DataReceiveEventArgs(Session session) => this.session = session;
-        private Session session;
-        public int DataLength { get => Data.Length; }
-        public string UTF8Data { get => UTF8Encoding.UTF8.GetString(Data); }
-        public int StreamIndexInList { get; set; }
-        public int UserIndex => session.UserIndex;
-        public void SetSessionUserIndex(int UserIndex)
-        {
-            session.UserIndex = UserIndex;
-        }
-    }
-    public class FileReceiveEventArgs : EventArgs
-    {
-        public FileInf File;
-    }
-    public class FileManager : Log
-    {
-        List<string> FileID;
-        List<long> FileLen;
-        List<string> FilePath;
-        Random Random;
-        List<char> chars;
-        public FileManager() : base("FileManager")
-        {
-            FileID = new List<string>();
-            FileLen = new List<long>();
-            FilePath = new List<string>();
-            Random = new Random();
-            chars = new List<char>();
-            for (int i = 0; i < 255; i++)
-            {
-                if (char.IsLetterOrDigit((char)i))
-                {
-                    chars.Add((char)i);
-                }
-            }
-        }
-        public byte[] GetFile(FileInf fileInf)
-        {
-            for (int i = 0; i < FileID.Count; i++)
-            {
-                if (FileID[i] == fileInf.File_Id)
-                {
-                    return System.IO.File.ReadAllBytes(FilePath[i]);
-                }
-            }
-            return null;
-        }
-        public FileInf AddFile(string filename)
-        {
-            long len = new System.IO.FileInfo(filename).Length;
-            string id;
-            do
-            {
-                id = GenFileId();
-            } while (FileID.Contains(id));
-            FileID.Add(id);
-            FileLen.Add(len);
-            FilePath.Add(filename);
-            return new FileInf() { File_Id = id, File_Length = len };
-        }
-        string GenFileId()
-        {
-            string id = "";
-            for (int i = 0; i < 24; i++)
-            {
-                id += chars[Random.Next(0, chars.Count)];
-            }
-            return id;
-        }
-    }
-    public class ServerMultiConnectManager : Log, IDisposable
-    {
-        #region Vars
-        private Socket mainListener;
-        private Socket fileListener;
-        private List<Session> sessions;
-        private X509Certificate certificate;
-        private X509Certificate certificate2;
-        private bool Disposed = false;
-        private FileManager FileManager;
-        #endregion
-        #region Events
-        public event EventHandler<DataReceiveEventArgs> OnDataReceive;
-        public event EventHandler<FileReceiveEventArgs> OnFileReceive;
-        #endregion
-        #region Properties
-        public int SessionCount { get { if (sessions != null) return sessions.Count; else return 0; } }
-        #endregion
-        #region Thread's
-        private Thread timeOutHandler;
-        #endregion
-        #region struct's
-        struct FileStreamX
-        {
-            public NetworkStream stream;
-            public System.IO.FileStream FileStream;
-            public string filename;
-            public long filelen;
-            public bool infoMode;
-            public byte[] buffer;
-            public Socket Socket;
-            public string stringBuffer;
-            public long rec;
-        }
-        #endregion
-        public ServerMultiConnectManager(bool console = true) : base("SMCM")
-        {
-            sessions = new List<Session>();
-            if (console) OnLog += LogInConsole;
-            LoadCert();
-            timeOutHandler = new Thread(new ThreadStart(TimeOut_Handler));
-            timeOutHandler.Start();
-            FileManager = new FileManager();
-        }
-
-        private void TimeOut_Handler()
-        {
-            while (!Disposed)
-            {
-                for (int i = 0; i < sessions.Count; i++)
-                {
-                    Session session = sessions[i];
-                    if (session.TimeOut == 0)
-                    {
-                        WriteError("Session Ended (Time Out)!. Removing...");
-                        session.Socket.Dispose();
-                        session.Socket = null;
-                        for (int j = session.IndexInList + 1; j < sessions.Count; j++)
-                        {
-                            WriteInfo("Session " + sessions[i].IndexInList + " Become Session " + (i));
-                            sessions[i].IndexInList = i;
-                        }
-                        sessions.Remove(session);
-                    }
-                    else
-                    {
-                        session.TimeOut--;
-                        sessions[i] = session;
-                    }
-                }
-                Thread.Sleep(1000);
-            }
-        }
-
-        internal Session this[int position]
-        {
-            get
-            {
-                if (sessions != null && sessions.Count > position) return sessions[position];
-                else return null;
-            }
-        }
-        public void StartListening()
-        {
-            mainListener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            mainListener.Bind(new IPEndPoint(IPAddress.Any, 42534));
-            mainListener.Listen(5);
-            mainListener.BeginAccept(AcceptCallBack, null);
-            fileListener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            fileListener.Bind(new IPEndPoint(IPAddress.Any, 42535));
-            fileListener.Listen(5);
-            fileListener.BeginAccept(AcceptCallBack_FileListener, null);
-            WriteInfo("Started Listening...", ConsoleColor.Yellow);
-        }
-
-        private void AcceptCallBack_FileListener(IAsyncResult ar)
-        {
-            try
-            {
-                Socket client = fileListener.EndAccept(ar);
-                NetworkStream stream = new NetworkStream(client, true);
-                //stream.AuthenticateAsServer(certificate2, false, System.Security.Authentication.SslProtocols.Tls, false);
-                WriteInfo("File Stream Connected !");
-                FileStreamX streamX = new FileStreamX()
-                {
-                    stream = stream,
-                    infoMode = true,
-                    buffer = new byte[4096],
-                    Socket = client,
-                    stringBuffer = ""
-                };
-                stream.BeginRead(streamX.buffer, 0, streamX.buffer.Length, Read_FileStreamX, streamX);
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-            }
-        }
-
-        private void Read_FileStreamX(IAsyncResult ar)
-        {
-            if (Disposed) return;
-            FileStreamX fileStream = (FileStreamX)ar.AsyncState;
-            try
-            {
-                int rSize = fileStream.stream.EndRead(ar);
-                if (fileStream.infoMode)
-                {
-                    string str = UTF8Encoding.UTF8.GetString(fileStream.buffer, 0, rSize);
-                    if (str.Length > 0 && str.Substring(str.Length - 1, 1) == "\0")
-                    {
-                        fileStream.stringBuffer += str;
-                        string[] para = fileStream.stringBuffer.Split(new char[] { '\0' });
-                        long len = long.Parse(para[1]);
-                        fileStream.filename = FileManager.AddFile(para[0]).File_Id;
-                        fileStream.filelen = len;
-                        fileStream.infoMode = false;
-                        fileStream.FileStream = new System.IO.FileStream("RR" + para[0], System.IO.FileMode.OpenOrCreate);
-                    }
-                    else
-                    {
-                        fileStream.stringBuffer += str;
-                    }
-                }
-                else
-                {
-                    fileStream.FileStream.Write(fileStream.buffer, 0, rSize);
-                    fileStream.FileStream.Flush();
-                }
-                fileStream.rec += rSize;
-                if (fileStream.rec == fileStream.filelen)
-                {
-                    fileStream.FileStream.Close();
-                    fileStream.stream.Close();
-                    fileStream.Socket.Close();
-                    OnFileReceive?.Invoke(this,
-                        new FileReceiveEventArgs() { File = new FileInf() { File_Id = fileStream.filename, File_Length = fileStream.filelen } });
-                }
-                else
-                    fileStream.stream.BeginRead(fileStream.buffer, 0, fileStream.buffer.Length, Read_FileStreamX, fileStream);
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-            }
-        }
-
-        private void AcceptCallBack(IAsyncResult ar)
-        {
-            if (Disposed) return;
-            try
-            {
-                Socket client = mainListener.EndAccept(ar);
-                SslStream stream = new SslStream(new NetworkStream(client, true) { ReadTimeout = 5000, WriteTimeout = 5000 });
-                stream.AuthenticateAsServer(certificate, false, System.Security.Authentication.SslProtocols.Tls, false);
-                Session x = new Session() { Socket = client, Stream = stream, DataBuffer = new byte[1024], UserIndex = -1 };
-                x.IndexInList = sessions.Count;
-                x.TimeOut = 10;
-                sessions.Add(x);
-                WriteInfo("Client connected and authenticated!");
-                WriteInfo("Client IP : " + (client.RemoteEndPoint as IPEndPoint).Address.ToString());
-                WriteInfo("SSL STREAM: IsEncrypted = " + stream.IsEncrypted + ", SslProtocol = " + stream.SslProtocol + ", IsAuthenticated = " + stream.IsAuthenticated);
-                stream.BeginRead(x.DataBuffer, 0, x.DataBuffer.Length, ReadCallBack, x);
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-            }
-            mainListener.BeginAccept(AcceptCallBack, null);
-        }
-
-        private void ReadCallBack(IAsyncResult ar)
-        {
-            if (Disposed) return;
-            Session session = (Session)ar.AsyncState;
-            try
-            {
-                int size = session.Stream.EndRead(ar);
-                string str = UTF8Encoding.UTF8.GetString(session.DataBuffer, 0, size);
-                if (str.Length > 0 && str.Substring(str.Length - 1, 1) == "\0")
-                {
-                    //WriteInfo("Data Received Proccessing...", ConsoleColor.DarkYellow);
-                    session.DataStrorage += str;
-                    OnDataReceive?.Invoke(this, new DataReceiveEventArgs(session)
-                    {
-                        StreamIndexInList = session.IndexInList,
-                        Data = UTF8Encoding.UTF8.GetBytes(session.DataStrorage)
-                    });
-                    session.DataStrorage = "";
-                }
-                else
-                {
-                    session.DataStrorage += str;
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-            }
-            try
-            {
-                if (session.Socket.Connected) session.Stream.BeginRead(session.DataBuffer, 0, session.DataBuffer.Length, ReadCallBack, session);
-                else throw new Exception("Stream Cant Poll!");
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-                WriteError("Session Ended !. Removing...");
-                if (session.Socket != null)
-                {
-                    session.Socket.Dispose();
-                    session.Socket = null;
-                }
-                for (int i = session.IndexInList + 1; i < sessions.Count; i++)
-                {
-                    WriteInfo("Session " + sessions[i].IndexInList + " Become Session " + (sessions[i].IndexInList - 1));
-                    sessions[i].IndexInList--;
-                }
-                sessions.Remove(session);
-            }
-        }
-        public void ReTimeOut(int IndexInList)
-        {
-            try
-            {
-                sessions[IndexInList].TimeOut = 10;
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-            }
-        }
-        public void WriteToStream(int IndexInList, string data)
-        {
-            if (Disposed) return;
-            var stream = sessions[IndexInList].Stream;
-            byte[] bytes = UTF8Encoding.UTF8.GetBytes(data + "\0");
-            stream.Write(bytes);
-            stream.Flush();
-        }
-        public void WriteToStream(int IndexInList, byte[] data)
-        {
-            if (Disposed) return;
-            var stream = sessions[IndexInList].Stream;
-            List<byte> mod = new List<byte>();
-            mod.AddRange(data);
-            mod.AddRange(UTF8Encoding.UTF8.GetBytes("\0"));
-            stream.Write(mod.ToArray());
-            stream.Flush();
-        }
-        public void WriteToStream(int IndexInList, Command data)
-        {
-            if (Disposed) return;
-            try
-            {
-                var stream = sessions[IndexInList].Stream;
-                byte[] bytes = UTF8Encoding.UTF8.GetBytes(data.ToString() + "\0");
-                stream.Write(bytes);
-                stream.Flush();
-            }
-            catch (Exception ex)
-            {
-                WriteError(ex);
-            }
-        }
-        void LoadCert()
-        {
-            if (Disposed) return;
-            //X509Store store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
-            //store.Open(OpenFlags.ReadOnly);
-            //X509CertificateCollection certificateCollection = store.Certificates.Find(X509FindType.FindBySerialNumber, "43ab5cb44de46cad4e5acd414b436325", true);
-            //if (certificateCollection.Count == 1)
-            //{
-            //    certificate = certificateCollection[0];
-            //}
-            certificate = new X509Certificate2(@"cert\server.pfx", "password");
-            certificate2 = new X509Certificate2(@"cert\server - Copy.pfx", "password");
-        }
-
-        public void Dispose()
-        {
-            Disposed = true;
-            mainListener.Close();
-            for (int i = 0; i < sessions.Count; i++)
-            {
-                if (sessions[i].Socket != null && sessions[i].Socket.Connected) sessions[i].Socket.Close();
-            }
-            sessions.Clear();
-            if (timeOutHandler.ThreadState == ThreadState.Running)
-            {
-                timeOutHandler.Abort();
-                timeOutHandler = null;
-            }
-        }
     }
     public class Server : Log, IDisposable
     {
@@ -594,7 +39,7 @@ namespace TetraAPI.Server
             if (Console) OnLog += LogInConsole;
             this.Console = Console;
         }
-
+        //Initialize the server and used managers
         public void StartServer()
         {
             ConnectManager = new ServerMultiConnectManager(Console);
@@ -603,7 +48,8 @@ namespace TetraAPI.Server
             MessagesHandler = new Thread(new ThreadStart(Messages_Handle));
             MessagesHandler.Start();
         }
-
+        //Handle's Messages
+        //Check the messages every 1 sec and try to send it if the user is online
         private void Messages_Handle()
         {
             for (int i = 0; i < ConnectManager.SessionCount; i++)
@@ -622,6 +68,9 @@ namespace TetraAPI.Server
                             cmd.CommandArgs = item.GetData();
                             ConnectManager.WriteToStream(session.IndexInList, cmd);
                             WriteInfo("Message From " + item.MessageFrom + " To " + item.MessageTo, ConsoleColor.Cyan);
+                            // If this message has (SETRECECIVED)
+                            // this message is used to alter message state
+                            // like (sent,received,readed)
                             if (item.MessageContent.IndexOf("SETRECECIVED") > -1) UserManager.DeleteMessage(session.UserIndex, j, false, true);
                             else UserManager.DeleteMessage(session.UserIndex, j, true, true);
                         }
@@ -644,33 +93,49 @@ namespace TetraAPI.Server
             Command cmd = Command.Parse(str);
             switch (cmd.CommandName)
             {
+                // Ping Command
+                // Used to determine if the client connection is up or not
+                // if the server dont get a response after 5 sec it will close the connection
                 case "PING":
                     {
                         ConnectManager.WriteToStream(e.StreamIndexInList, Command.PingCommand);
                         ConnectManager.ReTimeOut(e.StreamIndexInList);
                     }
                     break;
+                // Create User Request Command
                 case "CUSR":
                     {
+                        //Parse The Incoming Data
                         User x = User.Parse(cmd.CommandArgs);
                         Command c = new Command() { CommandName = "CUSR" };
+                        //Call AddUser From Usermanager
+                        //If the email is already taken return's -2
+                        //If the PID is already taken return's -1
+                        //If all things correct return's 0
                         switch (UserManager.AddUser(x))
                         {
                             case 0: c.CommandArgs = "SUCCESS"; e.SetSessionUserIndex(x.ServerID); break;
                             case -1: c.CommandArgs = "PIDERROR"; break;
                             case -2: c.CommandArgs = "EMAILERROR"; break;
                         }
+                        //Responed to the client what's the result
                         ConnectManager.WriteToStream(e.StreamIndexInList, c);
                         WriteInfo("User create : " + c.CommandArgs, ConsoleColor.Green);
                     }
                     break;
+                //Login Request Commnad
                 case "LOGN":
                     {
+                        //Parse The Incoming Data
                         User x = User.Parse(cmd.CommandArgs);
                         WriteInfo("LOGN[" + cmd.CommandArgs + "] ! processing..");
                         Command command = new Command();
                         command.CommandName = "LOGN";
                         User outU;
+                        //Call LoginUser from UserManager
+                        //If email was not associated with an account is wrong return's -2
+                        //If password is not correct return's -1
+                        //If user email and password is correct return's 0 and output user info
                         switch (UserManager.LoginUser(x, out outU))
                         {
                             case 0: command.CommandArgs = outU.GetData(); e.SetSessionUserIndex(outU.ServerID); break;
@@ -680,15 +145,27 @@ namespace TetraAPI.Server
                         ConnectManager.WriteToStream(e.StreamIndexInList, command);
                     }
                     break;
+                //Send Message Command
                 case "SMSG":
                     {
                         WriteInfo("Messeage Handler Requested!", ConsoleColor.DarkYellow);
+                        //Parse The Incoming Data
                         Message msg = Message.Parse(cmd.CommandArgs);
+
+                        //Check if the chat type is private or group
+                        //If it's private search for user with PID = Message.MessageTo
+                        //If it's group search for the group and get group member's
+                        //and send the message to every group member and not for the sender
                         if (msg.ChatType == ChatType.Private)
                         {
                             int uInd = UserManager.GetUserIndex(msg.MessageTo);
                             if (uInd > -1)
                             {
+
+                                //Call AddMessage from UserManager
+                                //If the sender is blocked by the receiver return's -2
+                                //If the user is not found return's -1
+                                //If all things right return's 0
                                 int result = UserManager.AddMessage(uInd, msg);
                                 if (result == -2)
                                 {
@@ -713,6 +190,10 @@ namespace TetraAPI.Server
                                     int uInd = UserManager.GetUserIndex(item);
                                     if (uInd > -1)
                                     {
+                                        //Call AddMessage from UserManager
+                                        //If the sender is blocked by the receiver return's -2
+                                        //If the user is not found return's -1
+                                        //If all things right return's 0
                                         int result = UserManager.AddMessage(uInd, msg);
                                         if (result == -2)
                                         {
@@ -727,6 +208,7 @@ namespace TetraAPI.Server
                         }
                     }
                     break;
+                //Block Request Command
                 case "SBLK":
                     {
                         string cmdArgs = cmd.CommandArgs.Substring(0, cmd.CommandArgs.Length - 1);
@@ -734,6 +216,7 @@ namespace TetraAPI.Server
                         UserManager.BlockUser(e.UserIndex, cmdArgs);
                     }
                     break;
+                //Unblock Request Command
                 case "UBLK":
                     {
                         string cmdArgs = cmd.CommandArgs.Substring(0, cmd.CommandArgs.Length - 1);
@@ -741,6 +224,7 @@ namespace TetraAPI.Server
                         UserManager.UnblockUser(e.UserIndex, cmdArgs);
                     }
                     break;
+                //Search Request Command
                 case "SRCH":
                     {
                         string keyword = cmd.CommandArgs.Remove(cmd.CommandArgs.Length - 1);
@@ -755,6 +239,7 @@ namespace TetraAPI.Server
                         }
                     }
                     break;
+                //Create Group Request Command
                 case "CRGR":
                     {
                         Group gr = Group.Parse(cmd.CommandArgs);
@@ -775,6 +260,10 @@ namespace TetraAPI.Server
                         }
                     }
                     break;
+                //Add Member To Group Command
+                //Add's a user to a group
+                //and send message to the this user from the group
+                //and send message to the other group member that this user have been added
                 case "AMGR":
                     {
                         string[] para = cmd.CommandArgs.Split(new char[] { '\0' });
@@ -818,6 +307,10 @@ namespace TetraAPI.Server
                         }
                     }
                     break;
+                //Remove Member From Group Command
+                //Remove's a user from a group
+                //and send message to the this user from the group the he have been removed
+                //and send message to the other group member that this user have been removed
                 case "RMGR":
                     {
                         string[] para = cmd.CommandArgs.Split(new char[] { '\0' });
@@ -861,6 +354,7 @@ namespace TetraAPI.Server
                         }
                     }
                     break;
+                //Get Group Info Command
                 case "GTGR":
                     {
                         int id = int.Parse(cmd.CommandArgs);
@@ -870,6 +364,7 @@ namespace TetraAPI.Server
                         ConnectManager.WriteToStream(e.StreamIndexInList, x);
                     }
                     break;
+                //Get User Info Command
                 case "GUSR":
                     {
                         int uInd = -1;
