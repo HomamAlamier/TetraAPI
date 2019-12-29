@@ -53,7 +53,8 @@ namespace TetraAPI.Server
             FilePath.Add(filename);
             return new FileInf() { File_Id = id, File_Length = len };
         }
-        string GenFileId()
+        public bool Contains_FileID(string fileid) => FileID.Contains(fileid);
+        public string GenFileId()
         {
             string id = "";
             for (int i = 0; i < 24; i++)

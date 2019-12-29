@@ -33,20 +33,6 @@ namespace TetraAPI.Server
         #region Thread's
         private Thread timeOutHandler;
         #endregion
-        #region struct's
-        struct FileStreamX
-        {
-            public NetworkStream stream;
-            public System.IO.FileStream FileStream;
-            public string filename;
-            public long filelen;
-            public bool infoMode;
-            public byte[] buffer;
-            public Socket Socket;
-            public string stringBuffer;
-            public long rec;
-        }
-        #endregion
         public ServerMultiConnectManager(bool console = true) : base("SMCM")
         {
             sessions = new List<Session>();
@@ -127,27 +113,31 @@ namespace TetraAPI.Server
             if (Disposed) return;
             object[] objs = (object[])ar.AsyncState;
             Socket client = (Socket)objs[4];
-            string oper = (string)objs[3];
+            string inf = (string)objs[3];
             bool infMode = (bool)objs[2];
             NetworkStream networkStream = (NetworkStream)objs[1];
             byte[] buffer = (byte[])objs[0];
             try
             {
-                int rBC = networkStream.EndRead(ar);
+                int receivedBytesCount = networkStream.EndRead(ar);
                 if (infMode)
                 {
-                    string[] para = Encoding.UTF8.GetString(buffer, 0, rBC).Split(new char[] { ':' });
+                    string[] para = Encoding.UTF8.GetString(buffer, 0, receivedBytesCount).Split(new char[] { ':' });
                     switch (para[0])
                     {
                         case "GET":
                             {
-                                if (File.Exists("files" + para[1]))
+                                //Check If the FileID is exists
+                                if (FileManager.Contains_FileID(para[1]))
                                 {
+                                    //Open the file with FileStream
                                     using (FileStream fileStream = new FileStream(@"files\" + para[1], FileMode.Open))
                                     {
                                         long currentPos = 0;
+                                        //transporting file as blocks with the size of the buffer
                                         do
                                         {
+                                            //Check if the remaining byte's is smaller then buffer size
                                             if (currentPos + buffer.Length > fileStream.Length)
                                             {
                                                 int last = (int)(fileStream.Length - currentPos);
@@ -172,6 +162,7 @@ namespace TetraAPI.Server
                                 }
                                 else
                                 {
+                                    //Send file not found error code
                                     networkStream.Write(new byte[] { 255, 244, 255, 244, 255, 244 }, 0, 6);
                                     networkStream.Flush();
                                     networkStream.Close();
@@ -183,16 +174,39 @@ namespace TetraAPI.Server
                             break;
                         case "POST":
                             {
-
+                                //Generate Random FileID and create the file and open it with FileStream
+                                string fn = FileManager.GenFileId() + "." + para[1];
+                                FileManager.AddFile(fn);
+                                inf = para[2];
+                                FileStream fileStream = new FileStream(fn, FileMode.OpenOrCreate);
+                                networkStream.BeginRead(buffer, 0, buffer.Length, Read_FileClient, new object[] {
+                                    buffer, networkStream, infMode, inf, client, fileStream });
                             }
                             break;
                     }
-                    oper = para[0];
                     infMode = false;
                 }
                 else
                 {
-
+                    FileStream fileStream = (FileStream)objs[5];
+                    int FileSize = int.Parse(inf);
+                    //Write the recieved bytes to the filestream
+                    fileStream.Write(buffer, 0, receivedBytesCount);
+                    fileStream.Flush();
+                    //Check if the length of the transported bytes = filesize
+                    if (fileStream.Length >= FileSize)
+                    {
+                        fileStream.Close();
+                        networkStream.Close();
+                        networkStream.Dispose();
+                        client.Close();
+                        client.Dispose();
+                    }
+                    else
+                    {
+                        networkStream.BeginRead(buffer, 0, buffer.Length, Read_FileClient, new object[] {
+                                    buffer, networkStream, infMode, inf, client, fileStream });
+                    }
                 }
             }
             catch (Exception ex)
@@ -235,7 +249,6 @@ namespace TetraAPI.Server
                 string str = UTF8Encoding.UTF8.GetString(session.DataBuffer, 0, size);
                 if (str.Length > 0 && str.Substring(str.Length - 1, 1) == "\0")
                 {
-                    //WriteInfo("Data Received Proccessing...", ConsoleColor.DarkYellow);
                     session.DataStrorage += str;
                     OnDataReceive?.Invoke(this, new DataReceiveEventArgs(session)
                     {
@@ -322,13 +335,6 @@ namespace TetraAPI.Server
         void LoadCert()
         {
             if (Disposed) return;
-            //X509Store store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
-            //store.Open(OpenFlags.ReadOnly);
-            //X509CertificateCollection certificateCollection = store.Certificates.Find(X509FindType.FindBySerialNumber, "43ab5cb44de46cad4e5acd414b436325", true);
-            //if (certificateCollection.Count == 1)
-            //{
-            //    certificate = certificateCollection[0];
-            //}
             certificate = new X509Certificate2(@"cert\server.pfx", "password");
             certificate2 = new X509Certificate2(@"cert\server - Copy.pfx", "password");
         }

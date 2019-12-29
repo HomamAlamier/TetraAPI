@@ -520,10 +520,7 @@ namespace TetraAPI.Client
 
         private bool CertificateCheck(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            //if (sslPolicyErrors == SslPolicyErrors.None)
-            //certificate.has
-            //log.Add("Certificate error: " + sslPolicyErrors);
-            //return false;
+            //Skip cretificate check for now
             return true;
         }
         public void Dispose()
@@ -542,7 +539,6 @@ namespace TetraAPI.Client
             if (socket.Connected)
             {
                 socketStream.Close();
-                //socket.Shutdown(SocketShutdown.Both);
                 socket.Close();
             }
             socket = null;
