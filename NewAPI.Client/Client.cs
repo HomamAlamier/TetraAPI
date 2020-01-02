@@ -105,6 +105,8 @@ namespace TetraAPI.Client
         void RemoveMemberFromGroupAsync(string pid, int grID);
         void GetGroupInfoAsync(int GRID);
         void GetUserInfoAsync(string pid);
+        void SendFile(string Filename, object ID, bool IsGroup = false);
+        void GetFile(string fileID);
         void Dispose();
         bool IsConnected { get; }
         int ConnectTrys { get; set; }
@@ -146,10 +148,13 @@ namespace TetraAPI.Client
         private bool Disposed;
         private Log logg;
         private string sLoc = "";
+        private List<UploadFileInfo> uploadFilesPendingList;
+        private List<string> downloadFilesPendingList;
         #endregion
         #region Threading
         private Thread connectHandler;
         private Thread pingHandler;
+        private Thread filesHandler;
         #endregion
         #region Properties
         public bool IsConnected { get => IsConnected; }
@@ -281,6 +286,20 @@ namespace TetraAPI.Client
             };
         }
         #endregion
+        #region Structure's
+        private struct UploadFileInfo
+        {
+            public string Filename;
+            public object ID;
+            public bool IsGroup;
+            public UploadFileInfo(string filename, object id, bool isgroup)
+            {
+                Filename = filename;
+                ID = id;
+                IsGroup = isgroup;
+            }
+        }
+        #endregion
         /// <summary>
         /// Initialize The Client
         /// </summary>
@@ -291,6 +310,8 @@ namespace TetraAPI.Client
             ConnectionStates = ConnectionState.Disconnected;
             SocketPermission permission = new SocketPermission(NetworkAccess.Accept, TransportType.Tcp, "", 47596);
             permission.Demand();
+            uploadFilesPendingList = new List<UploadFileInfo>();
+            downloadFilesPendingList = new List<string>();
         }
         /// <summary>
         /// Initialize The Client
@@ -306,6 +327,8 @@ namespace TetraAPI.Client
             ConnectionStates = ConnectionState.Disconnected;
             SocketPermission permission = new SocketPermission(NetworkAccess.Accept, TransportType.Tcp, "", 47596);
             permission.Demand();
+            uploadFilesPendingList = new List<UploadFileInfo>();
+            downloadFilesPendingList = new List<string>();
         }
         /// <summary>
         /// Start The Client
@@ -389,6 +412,67 @@ namespace TetraAPI.Client
                 connectHandler.Start();
             }
             pingHandler.Abort();
+        }
+        //Thread that handle's file transfering
+        private void Handle_Files()
+        {
+            while (true)
+            {
+                if (uploadFilesPendingList.Count > 0)
+                {
+                    for (int index = 0; index < uploadFilesPendingList.Count; index++)
+                    {
+                        string filename = uploadFilesPendingList[index].Filename;
+                        logg.WriteInfo("Transfering " + filename + "...");
+                        using (FileStream fileStream = new FileStream(filename, FileMode.Open))
+                        {
+                            Socket transferSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                            IAsyncResult result = transferSock.BeginConnect(connectIP_file, null, null);
+                            bool success = result.AsyncWaitHandle.WaitOne(2000, true);
+                            if (!success) throw new Exception("Connection Timed Out !");
+                            if (transferSock.Connected)
+                            {
+                                var fileSplit = filename.Split(new char[] { '.' });
+                                string fileExt = fileSplit[fileSplit.Length - 1];
+                                string cmd = "POST:" + fileExt + ":" + fileStream.Length;
+                                using (NetworkStream networkStream = new NetworkStream(transferSock, true))
+                                {
+                                    byte[] buffer = new byte[4096];
+                                    long curPos = 0;
+                                    var cmdBytes = Encoding.UTF8.GetBytes(cmd);
+                                    networkStream.Write(cmdBytes, 0, cmdBytes.Length);
+                                    networkStream.Flush();
+                                    Thread.Sleep(100);
+                                    while (curPos < fileStream.Length)
+                                    {
+                                        if (curPos + buffer.Length > fileStream.Length)
+                                        {
+                                            long remainingBytes = fileStream.Length - curPos;
+                                            fileStream.Read(buffer, 0, (int)remainingBytes);
+                                            networkStream.Write(buffer, 0, (int)remainingBytes);
+                                            networkStream.Flush();
+                                            curPos += remainingBytes;
+                                        }
+                                        else
+                                        {
+                                            fileStream.Read(buffer, 0, buffer.Length);
+                                            networkStream.Write(buffer, 0, buffer.Length);
+                                            networkStream.Flush();
+                                            curPos += 4096;
+                                        }
+                                    }
+                                }
+                                transferSock.Close();
+                                transferSock.Dispose();
+                                transferSock = null;
+                            }
+                        }
+                        uploadFilesPendingList.RemoveAt(index);
+                        logg.WriteInfo("Transfering Finished!");
+                    }
+                }
+                Thread.Sleep(5000);
+            }
         }
 
         //Handle's Incoming Data
@@ -702,69 +786,30 @@ namespace TetraAPI.Client
         }
         //The following method is in development
         /// <summary>
-        /// To Be Added
+        /// Send a file to a user or group (Testing)
         /// </summary>
-        /// <param name="filename"></param>
-        public void SendFile(string filename)
+        /// <param name="Filename">The filepath for the file do you want to upload</param>
+        /// <param name="ID">The ID of user/group do you want to send the file to</param>
+        /// <param name="IsGroup">Specify if it's group or not</param>
+        public void SendFile(string Filename, object ID, bool IsGroup = false)
         {
-            System.IO.FileStream stream1 = null;
-            try
+            if (File.Exists(Filename))
+                uploadFilesPendingList.Add(new UploadFileInfo(Filename, ID, IsGroup));
+            else
+                throw new FileNotFoundException();
+            if (filesHandler == null || filesHandler.IsAlive == false)
             {
-                Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                IAsyncResult result = sock.BeginConnect(connectIP_file, null, null);
-                bool success = result.AsyncWaitHandle.WaitOne(2000, true);
-                if (!success) throw new Exception("Connection Timed Out !");
-                if (sock != null && sock.Connected)
-                {
-                    logg.WriteInfo("File Client Connected Successfully!");
-                    NetworkStream stream = new NetworkStream(sock, true);
-                    //stream.AuthenticateAsClient(ClientAuthName);
-                    long cur = 0;
-                    int bufSize = 4096;
-                    byte[] buffer;
-                    long len = new System.IO.FileInfo(filename).Length;
-                    string[] ff = filename.Split(new char[] { '\\' });
-                    string xS = ff[ff.Length - 1] + "\0" + len + "\0";
-                    var b = UTF8Encoding.UTF8.GetBytes(xS);
-                    stream.Write(b, 0, b.Length);
-                    stream.Flush();
-                    stream1 = new System.IO.FileStream(filename, System.IO.FileMode.Open);
-                    while (true)
-                    {
-                        buffer = new byte[bufSize];
-                        if (cur + bufSize > len)
-                        {
-                            int size = stream1.Read(buffer, 0, (int)(len - cur));
-                            stream.Write(buffer, 0, size);
-                            stream.Flush();
-                            logg.WriteInfo("Transfering " + (cur + size) + "/" + len);
-                            break;
-                        }
-                        else
-                        {
-                            int size = stream1.Read(buffer, 0, bufSize);
-                            stream.Write(buffer, 0, size);
-                            stream.Flush();
-                            cur += bufSize;
-                        }
-                        logg.WriteInfo("Transfering " + cur + "/" + len);
-                    }
-                    stream1.Close();
-                    stream1.Dispose();
-                    sock.Close();
-                    sock.Dispose();
-                }
+                filesHandler = new Thread(new ThreadStart(Handle_Files));
+                filesHandler.Start();
             }
-            catch (Exception ex)
-            {
-                if (stream1 != null)
-                {
-                    stream1.Close();
-                    stream1.Dispose();
-                }
-                logg.WriteError(ex);
-                if (ex.InnerException != null) logg.WriteError(ex.InnerException);
-            }
+        }
+        /// <summary>
+        /// Download a file from the server using specific FileID
+        /// </summary>
+        /// <param name="fileID">The FileID to send to the server</param>
+        public void GetFile(string fileID)
+        {
+            downloadFilesPendingList.Add(fileID);
         }
     }
 }

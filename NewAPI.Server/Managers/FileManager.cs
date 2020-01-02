@@ -23,7 +23,7 @@ namespace TetraAPI.Server
             chars = new List<char>();
             for (int i = 0; i < 255; i++)
             {
-                if (char.IsLetterOrDigit((char)i))
+                if (char.IsLetter((char)i) || char.IsNumber((char)i))
                 {
                     chars.Add((char)i);
                 }
@@ -42,12 +42,8 @@ namespace TetraAPI.Server
         }
         public FileInf AddFile(string filename)
         {
-            long len = new System.IO.FileInfo(filename).Length;
-            string id;
-            do
-            {
-                id = GenFileId();
-            } while (FileID.Contains(id));
+            long len = System.IO.File.Exists(filename) ? new System.IO.FileInfo(filename).Length : 0;
+            string id = filename.Substring(0, filename.IndexOf("."));
             FileID.Add(id);
             FileLen.Add(len);
             FilePath.Add(filename);
@@ -56,12 +52,12 @@ namespace TetraAPI.Server
         public bool Contains_FileID(string fileid) => FileID.Contains(fileid);
         public string GenFileId()
         {
-            string id = "";
-            for (int i = 0; i < 24; i++)
-            {
-                id += chars[Random.Next(0, chars.Count)];
-            }
-            return id;
+            const string chars =
+                "1234567890" +
+                "QWERTYUIOPASDFGHJKLZXCVBNM" +
+                "qwertyuiopasdfghjklzxcvbnm";
+            return new string(Enumerable.Repeat(chars, 8)
+              .Select(s => s[Random.Next(s.Length)]).ToArray());
         }
     }
 }

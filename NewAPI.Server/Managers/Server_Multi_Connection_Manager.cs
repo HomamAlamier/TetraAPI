@@ -106,6 +106,7 @@ namespace TetraAPI.Server
             {
                 WriteError(ex);
             }
+            fileListener.BeginAccept(AcceptCallBack_FileListener, null);
         }
 
         private void Read_FileClient(IAsyncResult ar)
@@ -175,12 +176,12 @@ namespace TetraAPI.Server
                         case "POST":
                             {
                                 //Generate Random FileID and create the file and open it with FileStream
-                                string fn = FileManager.GenFileId() + "." + para[1];
+                                string fn = @"files\"+  FileManager.GenFileId() + "." + para[1];
                                 FileManager.AddFile(fn);
                                 inf = para[2];
                                 FileStream fileStream = new FileStream(fn, FileMode.OpenOrCreate);
                                 networkStream.BeginRead(buffer, 0, buffer.Length, Read_FileClient, new object[] {
-                                    buffer, networkStream, infMode, inf, client, fileStream });
+                                    buffer, networkStream, false, inf, client, fileStream });
                             }
                             break;
                     }
@@ -193,6 +194,7 @@ namespace TetraAPI.Server
                     //Write the recieved bytes to the filestream
                     fileStream.Write(buffer, 0, receivedBytesCount);
                     fileStream.Flush();
+                    WriteInfo("Tranafering " + fileStream.Length + "/" + FileSize);
                     //Check if the length of the transported bytes = filesize
                     if (fileStream.Length >= FileSize)
                     {

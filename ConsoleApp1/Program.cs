@@ -145,7 +145,7 @@ namespace ConsoleApp1
                                     {
                                         Console.WriteLine("Write A Message And Press Enter To Send");
                                         string message = Console.ReadLine();
-                                        cli.SendFile("testfile.txt");
+                                        cli.SendFile("testfile.txt", "dev2");
                                     }
 
                                 }
