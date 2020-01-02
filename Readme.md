@@ -1,4 +1,4 @@
-![](docs/logo.png)
+![](logo.png)
 ## Tetra API Project
 An API project for simple chat app.
 
