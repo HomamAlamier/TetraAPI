@@ -13,21 +13,12 @@ namespace TetraAPI.Server
         List<long> FileLen;
         List<string> FilePath;
         Random Random;
-        List<char> chars;
         public FileManager() : base("FileManager")
         {
             FileID = new List<string>();
             FileLen = new List<long>();
             FilePath = new List<string>();
             Random = new Random();
-            chars = new List<char>();
-            for (int i = 0; i < 255; i++)
-            {
-                if (char.IsLetter((char)i) || char.IsNumber((char)i))
-                {
-                    chars.Add((char)i);
-                }
-            }
         }
         public byte[] GetFile(FileInf fileInf)
         {
