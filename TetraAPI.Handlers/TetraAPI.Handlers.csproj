@@ -7,8 +7,8 @@
     <ProjectGuid>{607349D0-17A3-4D33-9790-A77A5BF17EF6}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>NewAPI.Handlers</RootNamespace>
-    <AssemblyName>NewAPI.Handlers</AssemblyName>
+    <RootNamespace>TetraAPI.Handlers</RootNamespace>
+    <AssemblyName>TetraAPI.Handlers</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>

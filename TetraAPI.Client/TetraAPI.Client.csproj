@@ -7,8 +7,8 @@
     <ProjectGuid>{AC5EBBF5-F88D-420A-976B-0319379B1654}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>NewAPI.Client</RootNamespace>
-    <AssemblyName>NewAPI.Client</AssemblyName>
+    <RootNamespace>TetraAPI.Client</RootNamespace>
+    <AssemblyName>TetraAPI.Client</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
