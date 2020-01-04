@@ -70,7 +70,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NewAPI.Handlers\TetraAPI.Handlers.csproj">
+    <ProjectReference Include="..\TetraAPI.Handlers\TetraAPI.Handlers.csproj">
       <Project>{607349d0-17a3-4d33-9790-a77a5bf17ef6}</Project>
       <Name>TetraAPI.Handlers</Name>
     </ProjectReference>

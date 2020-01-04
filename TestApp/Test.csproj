@@ -68,15 +68,15 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NewAPI.Client\TetraAPI.Client.csproj">
+    <ProjectReference Include="..\TetraAPI.Client\TetraAPI.Client.csproj">
       <Project>{ac5ebbf5-f88d-420a-976b-0319379b1654}</Project>
       <Name>TetraAPI.Client</Name>
     </ProjectReference>
-    <ProjectReference Include="..\NewAPI.Handlers\TetraAPI.Handlers.csproj">
+    <ProjectReference Include="..\TetraAPI.Handlers\TetraAPI.Handlers.csproj">
       <Project>{607349d0-17a3-4d33-9790-a77a5bf17ef6}</Project>
       <Name>TetraAPI.Handlers</Name>
     </ProjectReference>
-    <ProjectReference Include="..\NewAPI.Server\TetraAPI.Server.csproj">
+    <ProjectReference Include="..\TetraAPI.Server\TetraAPI.Server.csproj">
       <Project>{c1c5ec24-509f-4a82-9a29-c6c2d8fb13b5}</Project>
       <Name>TetraAPI.Server</Name>
     </ProjectReference>

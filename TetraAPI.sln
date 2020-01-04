@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29411.108
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "ConsoleApp1\Test.csproj", "{DCBE9F20-2582-4B47-B637-9475D9B0CD81}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "TestApp\Test.csproj", "{DCBE9F20-2582-4B47-B637-9475D9B0CD81}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TetraAPI.Client", "NewAPI.Client\TetraAPI.Client.csproj", "{AC5EBBF5-F88D-420A-976B-0319379B1654}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TetraAPI.Client", "TetraAPI.Client\TetraAPI.Client.csproj", "{AC5EBBF5-F88D-420A-976B-0319379B1654}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TetraAPI.Handlers", "NewAPI.Handlers\TetraAPI.Handlers.csproj", "{607349D0-17A3-4D33-9790-A77A5BF17EF6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TetraAPI.Handlers", "TetraAPI.Handlers\TetraAPI.Handlers.csproj", "{607349D0-17A3-4D33-9790-A77A5BF17EF6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TetraAPI.Server", "NewAPI.Server\TetraAPI.Server.csproj", "{C1C5EC24-509F-4A82-9A29-C6C2D8FB13B5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TetraAPI.Server", "TetraAPI.Server\TetraAPI.Server.csproj", "{C1C5EC24-509F-4A82-9A29-C6C2D8FB13B5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{05A2068F-5DFA-420C-9D65-96919A727F2A}"
 	ProjectSection(SolutionItems) = preProject
