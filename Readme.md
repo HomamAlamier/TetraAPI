@@ -12,7 +12,7 @@ This project for university graduation.
 	3.UserSearch(needs better search algorithm)
 ## Functional :
 	1.FileTransfer (Sending file only from the client to server)
-	2.FileTransfer : (Download file from server to client)
+	2.FileTransfer (Download file from server to client)
 ## Not Working :
 	2.There Is Some Connection Lost (IDK why for now :P)
 ## Planing :
