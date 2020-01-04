@@ -132,9 +132,14 @@ namespace TetraAPI.Server
                                 if (FileManager.Contains_FileID(para[1]))
                                 {
                                     //Open the file with FileStream
-                                    using (FileStream fileStream = new FileStream(@"files\" + para[1], FileMode.Open))
+                                    using (FileStream fileStream = new FileStream(FileManager.GetFile(para[1]), FileMode.Open))
                                     {
                                         long currentPos = 0;
+                                        string reply = "SIZE:" + fileStream.Length;
+                                        var replyBytes = Encoding.UTF8.GetBytes(reply);
+                                        networkStream.Write(replyBytes, 0, replyBytes.Length);
+                                        networkStream.Flush();
+                                        Thread.Sleep(100);
                                         //transporting file as blocks with the size of the buffer
                                         do
                                         {
@@ -176,8 +181,10 @@ namespace TetraAPI.Server
                         case "POST":
                             {
                                 //Generate Random FileID and create the file and open it with FileStream
-                                string fn = @"files\"+  FileManager.GenFileId() + "." + para[1];
-                                FileManager.AddFile(fn);
+                                var fid = FileManager.GenFileId() + "." + para[1];
+                                string fn = @"files\" + fid ;
+                                FileManager.AddFile(fn, fid);
+                                WriteInfo("Receiving File : ID = " + fid);
                                 inf = para[2];
                                 FileStream fileStream = new FileStream(fn, FileMode.OpenOrCreate);
                                 networkStream.BeginRead(buffer, 0, buffer.Length, Read_FileClient, new object[] {
@@ -194,7 +201,7 @@ namespace TetraAPI.Server
                     //Write the recieved bytes to the filestream
                     fileStream.Write(buffer, 0, receivedBytesCount);
                     fileStream.Flush();
-                    WriteInfo("Tranafering " + fileStream.Length + "/" + FileSize);
+                    // WriteInfo("Tranafering " + fileStream.Length + "/" + FileSize);
                     //Check if the length of the transported bytes = filesize
                     if (fileStream.Length >= FileSize)
                     {

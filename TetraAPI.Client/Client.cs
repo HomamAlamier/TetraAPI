@@ -416,65 +416,143 @@ namespace TetraAPI.Client
         //Thread that handle's file transfering
         private void Handle_Files()
         {
-            while (true)
+            while (ConnectionStates == ConnectionState.Connected)
             {
-                if (uploadFilesPendingList.Count > 0)
+                try
                 {
-                    for (int index = 0; index < uploadFilesPendingList.Count; index++)
+                    if (uploadFilesPendingList.Count > 0)
                     {
-                        string filename = uploadFilesPendingList[index].Filename;
-                        logg.WriteInfo("Transfering " + filename + "...");
-                        using (FileStream fileStream = new FileStream(filename, FileMode.Open))
+                        for (int index = 0; index < uploadFilesPendingList.Count; index++)
                         {
-                            Socket transferSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                            IAsyncResult result = transferSock.BeginConnect(connectIP_file, null, null);
-                            bool success = result.AsyncWaitHandle.WaitOne(2000, true);
-                            if (!success) throw new Exception("Connection Timed Out !");
-                            if (transferSock.Connected)
+                            string filename = uploadFilesPendingList[index].Filename;
+                            logg.WriteInfo("Transfering " + filename + "...");
+                            using (FileStream fileStream = new FileStream(filename, FileMode.Open))
                             {
-                                var fileSplit = filename.Split(new char[] { '.' });
-                                string fileExt = fileSplit[fileSplit.Length - 1];
-                                string cmd = "POST:" + fileExt + ":" + fileStream.Length;
-                                using (NetworkStream networkStream = new NetworkStream(transferSock, true))
+                                Socket transferSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                                IAsyncResult result = transferSock.BeginConnect(connectIP_file, null, null);
+                                bool success = result.AsyncWaitHandle.WaitOne(2000, true);
+                                if (!success) throw new Exception("File Transfer Connection Timed Out !");
+                                if (transferSock.Connected)
                                 {
-                                    byte[] buffer = new byte[4096];
-                                    long curPos = 0;
-                                    var cmdBytes = Encoding.UTF8.GetBytes(cmd);
-                                    networkStream.Write(cmdBytes, 0, cmdBytes.Length);
-                                    networkStream.Flush();
-                                    Thread.Sleep(100);
-                                    while (curPos < fileStream.Length)
+                                    var fileSplit = filename.Split(new char[] { '.' });
+                                    string fileExt = fileSplit[fileSplit.Length - 1];
+                                    string cmd = "POST:" + fileExt + ":" + fileStream.Length;
+                                    using (NetworkStream networkStream = new NetworkStream(transferSock, true))
                                     {
-                                        if (curPos + buffer.Length > fileStream.Length)
+                                        byte[] buffer = new byte[4096];
+                                        long curPos = 0;
+                                        var cmdBytes = Encoding.UTF8.GetBytes(cmd);
+                                        networkStream.Write(cmdBytes, 0, cmdBytes.Length);
+                                        networkStream.Flush();
+                                        Thread.Sleep(100);
+                                        while (curPos < fileStream.Length)
                                         {
-                                            long remainingBytes = fileStream.Length - curPos;
-                                            fileStream.Read(buffer, 0, (int)remainingBytes);
-                                            networkStream.Write(buffer, 0, (int)remainingBytes);
-                                            networkStream.Flush();
-                                            curPos += remainingBytes;
-                                        }
-                                        else
-                                        {
-                                            fileStream.Read(buffer, 0, buffer.Length);
-                                            networkStream.Write(buffer, 0, buffer.Length);
-                                            networkStream.Flush();
-                                            curPos += 4096;
+                                            if (curPos + buffer.Length > fileStream.Length)
+                                            {
+                                                long remainingBytes = fileStream.Length - curPos;
+                                                fileStream.Read(buffer, 0, (int)remainingBytes);
+                                                networkStream.Write(buffer, 0, (int)remainingBytes);
+                                                networkStream.Flush();
+                                                curPos += remainingBytes;
+                                            }
+                                            else
+                                            {
+                                                fileStream.Read(buffer, 0, buffer.Length);
+                                                networkStream.Write(buffer, 0, buffer.Length);
+                                                networkStream.Flush();
+                                                curPos += 4096;
+                                            }
                                         }
                                     }
+                                    transferSock.Close();
+                                    transferSock.Dispose();
+                                    transferSock = null;
                                 }
-                                transferSock.Close();
-                                transferSock.Dispose();
-                                transferSock = null;
+                            }
+                            uploadFilesPendingList.RemoveAt(index);
+                            logg.WriteInfo("Transfering Finished!");
+                        }
+                    }
+                    if (downloadFilesPendingList.Count > 0)
+                    {
+                        List<int> doneIndexs = new List<int>();
+                        for (int index = 0; index < downloadFilesPendingList.Count; index++)
+                        {
+                            Socket transferSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                            string filename = downloadFilesPendingList[index];
+                            IAsyncResult result = transferSock.BeginConnect(connectIP_file, null, null);
+                            bool success = result.AsyncWaitHandle.WaitOne(2000, true);
+                            if (!success) throw new Exception("File Transfer Connection Timed Out !");
+                            if (transferSock.Connected)
+                            {
+                                NetworkStream networkStream = new NetworkStream(transferSock, true);
+                                var cmd = "GET:" + filename;
+                                var cmdBytes = Encoding.UTF8.GetBytes(cmd);
+                                networkStream.Write(cmdBytes, 0, cmdBytes.Length);
+                                networkStream.Flush();
+                                byte[] buffer = new byte[4096];
+                                networkStream.BeginRead(buffer, 0, buffer.Length, ReceiveFileAsync,
+                                    new object[] { buffer, 0, 0, true, transferSock, filename, networkStream, null });
+                                doneIndexs.Add(index);
                             }
                         }
-                        uploadFilesPendingList.RemoveAt(index);
-                        logg.WriteInfo("Transfering Finished!");
+                        foreach (var item in doneIndexs)
+                            downloadFilesPendingList.RemoveAt(item);
                     }
+                    Thread.Sleep(5000);
                 }
-                Thread.Sleep(5000);
+                catch (Exception ex)
+                {
+                    logg.WriteError(ex);
+                }
             }
         }
-
+        private void ReceiveFileAsync(IAsyncResult ar)
+        {
+            object[] objs = (object[])ar.AsyncState;
+            byte[] buffer = (byte[])objs[0];
+            int curPos = (int)objs[1];
+            int filesize = (int)objs[2];
+            bool infMode = (bool)objs[3];
+            Socket transferSock = (Socket)objs[4];
+            string filename = (string)objs[5];
+            NetworkStream networkStream = (NetworkStream)objs[6];
+            FileStream fileStream = (FileStream)objs[7];
+            int receivedBytesCount = networkStream.EndRead(ar);
+            if (infMode)
+            {
+                string cmd = Encoding.UTF8.GetString(buffer, 0, receivedBytesCount);
+                var split = cmd.Split(new char[] { ':' });
+                if (split[0] == "SIZE")
+                {
+                    filesize = int.Parse(split[1]);
+                    infMode = false;
+                    fileStream = new FileStream(filename, FileMode.OpenOrCreate);
+                    logg.WriteInfo("Receiveing File With Size Of : " + filesize);
+                }
+            }
+            else
+            {
+                fileStream.Write(buffer, 0, receivedBytesCount);
+                fileStream.Flush();
+                curPos += receivedBytesCount;
+                if (curPos >= filesize)
+                {
+                    logg.WriteInfo("File Received.");
+                    networkStream.Close();
+                    networkStream.Dispose();
+                    fileStream.Close();
+                    fileStream.Dispose();
+                    transferSock.Close();
+                    transferSock.Dispose();
+                    return;
+                }
+            }
+            networkStream.BeginRead(buffer, 0, buffer.Length, ReceiveFileAsync,
+                new object[] { buffer, curPos, filesize,
+                    infMode, transferSock, filename,
+                    networkStream, fileStream });
+        }
         //Handle's Incoming Data
         private void StreamReadHandler(IAsyncResult ar)
         {

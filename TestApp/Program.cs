@@ -1,7 +1,7 @@
-﻿using TetraAPI.Client;
+﻿using System;
+using TetraAPI.Client;
 using TetraAPI.Handlers;
 using TetraAPI.Server;
-using System;
 namespace ConsoleApp1
 {
     class Program
@@ -143,9 +143,14 @@ namespace ConsoleApp1
                                 {
                                     while (true)
                                     {
-                                        Console.WriteLine("Write A Message And Press Enter To Send");
                                         string message = Console.ReadLine();
-                                        cli.SendFile("testfile.txt", "dev2");
+                                        if (message=="upload") cli.SendFile("testfile.txt", "dev2");
+                                        if (message == "download")
+                                        {
+                                            Console.Write("File ID : ");
+                                            string fileid = Console.ReadLine();
+                                            if (fileid != "") cli.GetFile(fileid);
+                                        }
                                     }
 
                                 }

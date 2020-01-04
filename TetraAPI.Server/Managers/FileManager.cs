@@ -20,25 +20,24 @@ namespace TetraAPI.Server
             FilePath = new List<string>();
             Random = new Random();
         }
-        public byte[] GetFile(FileInf fileInf)
+        public string GetFile(string FID)
         {
             for (int i = 0; i < FileID.Count; i++)
             {
-                if (FileID[i] == fileInf.File_Id)
+                if (FileID[i] == FID)
                 {
-                    return System.IO.File.ReadAllBytes(FilePath[i]);
+                    return FilePath[i];
                 }
             }
             return null;
         }
-        public FileInf AddFile(string filename)
+        public FileInf AddFile(string filename, string fid)
         {
             long len = System.IO.File.Exists(filename) ? new System.IO.FileInfo(filename).Length : 0;
-            string id = filename.Substring(0, filename.IndexOf("."));
-            FileID.Add(id);
+            FileID.Add(fid);
             FileLen.Add(len);
             FilePath.Add(filename);
-            return new FileInf() { File_Id = id, File_Length = len };
+            return new FileInf() { File_Id = fid, File_Length = len };
         }
         public bool Contains_FileID(string fileid) => FileID.Contains(fileid);
         public string GenFileId()
